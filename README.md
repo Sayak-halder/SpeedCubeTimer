@@ -127,3 +127,5 @@ prisma/schema.prisma      the database
 | blank page after sign-in | `AUTH_SECRET` is missing |
 
 Now go turn some plastic. 🏁
+
+ **Live:** [speecubetimer.vercel.app](https://speecubetimer.vercel.app/)
