@@ -1,0 +1,98 @@
+// Postgres. On Vercel, add a Postgres store and DATABASE_URL is set for you.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Auth.js models -------------------------------------------------------
+//
+// Account, Session and VerificationToken are the adapter's own tables. With
+// the credentials provider the session lives in a JWT cookie, so Session sits
+// empty; both are kept so an OAuth provider can be added later without a
+// migration.
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+
+  /// bcrypt hash. Null for an account created by an OAuth provider, if one is
+  /// ever added back; such an account cannot sign in with a password.
+  passwordHash  String?
+
+  accounts      Account[]
+  sessions      Session[]
+  solves        Solve[]
+  createdAt     DateTime  @default(now())
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// --- Timer -----------------------------------------------------------------
+
+enum Penalty {
+  OK
+  PLUS2
+  DNF
+}
+
+model Solve {
+  id       String  @id @default(cuid())
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Cube size: 2 through 7.
+  size     Int
+  /// Raw time in milliseconds, as the timer recorded it.
+  ms       Int
+  penalty  Penalty @default(OK)
+  /// ms + 2000 for a +2; null for a DNF. Stored so the leaderboard is a
+  /// plain indexed query rather than a computation over every row.
+  effectiveMs Int?
+
+  scramble String
+  createdAt DateTime @default(now())
+
+  @@index([size, effectiveMs])
+  @@index([userId, size, createdAt])
+}
